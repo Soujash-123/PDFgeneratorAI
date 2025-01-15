@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Generator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .preview {
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold mb-6 text-center">Document Generator</h1>
+        
+        <form id="generatorForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">Prompt:</label>
+                <textarea 
+                    id="prompt" 
+                    class="w-full p-2 border rounded-lg h-32"
+                    required
+                ></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Format:</label>
+                    <select id="format" class="w-full p-2 border rounded-lg">
+                        <option value="markdown">Markdown</option>
+                        <option value="latex">LaTeX</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Tone:</label>
+                    <select id="tone" class="w-full p-2 border rounded-lg">
+                        <option value="neutral">Neutral</option>
+                        <option value="formal">Formal</option>
+                        <option value="casual">Casual</option>
+                        <option value="professional">Professional</option>
+                        <option value="academic">Academic</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Pages:</label>
+                    <input type="number" id="pages" class="w-full p-2 border rounded-lg">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Grade Level:</label>
+                    <input type="text" id="grade" class="w-full p-2 border rounded-lg">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Word Count:</label>
+                    <input type="number" id="words" class="w-full p-2 border rounded-lg">
+                </div>
+            </div>
+
+            <button 
+                type="submit" 
+                class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                id="generateBtn"
+            >
+                Generate Content
+            </button>
+        </form>
+
+        <div id="previewSection" class="hidden mt-8">
+            <h2 class="text-xl font-semibold mb-4">Preview:</h2>
+            <div id="preview" class="preview bg-gray-50 p-4 rounded-lg border"></div>
+            
+            <div class="mt-4 flex justify-end">
+                <button 
+                    id="downloadBtn" 
+                    class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors flex items-center"
+                >
+                    <span>Download PDF</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="loadingIndicator" class="hidden">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="loading-spinner"></div>
+                    <p class="text-lg mt-2">Processing...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('generatorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const previewSection = document.getElementById('previewSection');
+            const preview = document.getElementById('preview');
+            const generateBtn = document.getElementById('generateBtn');
+            
+            generateBtn.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+            
+            const formData = {
+                prompt: document.getElementById('prompt').value,
+                format: document.getElementById('format').value,
+                tone: document.getElementById('tone').value,
+                pages: document.getElementById('pages').value,
+                grade: document.getElementById('grade').value,
+                words: document.getElementById('words').value
+            };
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate content');
+                }
+
+                const data = await response.json();
+                preview.textContent = data.content;
+                previewSection.classList.remove('hidden');
+                
+                // Store the generated content for later use
+                preview.dataset.content = data.content;
+                preview.dataset.format = data.format;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while generating content.');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                generateBtn.disabled = false;
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', async () => {
+            const preview = document.getElementById('preview');
+            const content = preview.dataset.content;
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            if (!content) {
+                alert('Please generate content first');
+                return;
+            }
+
+            try {
+                // Update button state
+                downloadBtn.disabled = true;
+                const btnText = downloadBtn.querySelector('span');
+                const originalText = btnText.textContent;
+                btnText.textContent = 'Generating PDF...';
+                
+                // Add spinner to button
+                const spinner = document.createElement('div');
+                spinner.className = 'loading-spinner';
+                downloadBtn.prepend(spinner);
+
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        content: content
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate PDF');
+                }
+
+                // Convert response to blob
+                const blob = await response.blob();
+                
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "document.pdf";
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                a.remove();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to generate PDF. Please try again.');
+            } finally {
+                // Reset button state
+                downloadBtn.disabled = false;
+                const btnText = downloadBtn.querySelector('span');
+                btnText.textContent = 'Download PDF';
+                const spinner = downloadBtn.querySelector('.loading-spinner');
+                if (spinner) spinner.remove();
+            }
+        });
+    </script>
+</body>
+</html>
