@@ -6,5 +6,5 @@ set -o errexit
 pip install -r requirements.txt
 
 # Install system dependencies
-apt-get update
-apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+sudo apt-get update
+sudo apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
