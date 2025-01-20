@@ -100,27 +100,6 @@
             background: linear-gradient(135deg, #B73DAF 0%, #EBBD61 100%);
         }
 
-        .decorative-circle {
-            position: absolute;
-            border-radius: 50%;
-            opacity: 0.1;
-            background: linear-gradient(135deg, #4158D0 0%, #C850C0 100%);
-        }
-
-        .circle-1 {
-            width: 200px;
-            height: 200px;
-            top: -100px;
-            right: -100px;
-        }
-
-        .circle-2 {
-            width: 150px;
-            height: 150px;
-            bottom: -75px;
-            left: -75px;
-        }
-
         .title-gradient {
             background: linear-gradient(135deg, #4158D0 0%, #C850C0 100%);
             -webkit-background-clip: text;
@@ -135,18 +114,41 @@
             -webkit-text-fill-color: transparent;
             font-weight: 600;
         }
+
+        /* Add styles for error messages */
+        .error-message {
+            background-color: #FEE2E2;
+            border: 1px solid #FCA5A5;
+            color: #DC2626;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        /* Add styles for success messages */
+        .success-message {
+            background-color: #D1FAE5;
+            border: 1px solid #6EE7B7;
+            color: #047857;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: none;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
     <div class="max-w-4xl mx-auto">
         <div class="card rounded-2xl p-6 md:p-8">
-            <div class="decorative-circle circle-1"></div>
-            <div class="decorative-circle circle-2"></div>
-            
             <h1 class="text-4xl font-bold mb-8 text-center title-gradient">
                 Document Generator
                 <div class="mt-2 text-sm font-normal text-gray-500">Create beautiful documents with ease</div>
             </h1>
+            
+            <!-- Error and Success Messages -->
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
             
             <form id="generatorForm" class="space-y-6 relative">
                 <div>
@@ -244,12 +246,36 @@
         const preview = document.getElementById('preview');
         const generateBtn = document.getElementById('generateBtn');
         const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        // Function to show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        // Function to show success message
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 5000);
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             generateBtn.disabled = true;
             loadingIndicator.classList.remove('hidden');
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
             
             const formData = {
                 prompt: document.getElementById('prompt').value,
@@ -267,18 +293,22 @@
                     body: JSON.stringify(formData)
                 });
 
-                if (!response.ok) throw new Error('Failed to generate content');
-
                 const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to generate content');
+                }
+
                 preview.textContent = data.content;
                 preview.dataset.content = data.content;
                 preview.dataset.format = data.format;
                 
                 previewSection.classList.remove('hidden');
+                showSuccess('Document generated successfully!');
                 
             } catch (error) {
                 console.error('Error:', error);
-                alert('An error occurred while generating content.');
+                showError(error.message || 'An error occurred while generating content.');
             } finally {
                 loadingIndicator.classList.add('hidden');
                 generateBtn.disabled = false;
@@ -287,9 +317,10 @@
 
         downloadBtn.addEventListener('click', async () => {
             const content = preview.dataset.content;
+            const format = preview.dataset.format;
             
             if (!content) {
-                alert('Please generate content first');
+                showError('Please generate content first');
                 return;
             }
 
@@ -298,14 +329,21 @@
                 const btnText = downloadBtn.querySelector('span');
                 const originalText = btnText.textContent;
                 btnText.textContent = 'Generating PDF...';
+                loadingIndicator.classList.remove('hidden');
 
                 const response = await fetch('/convert', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({ 
+                        content,
+                        format 
+                    })
                 });
 
-                if (!response.ok) throw new Error('Failed to generate PDF');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate PDF');
+                }
 
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -317,14 +355,16 @@
                 
                 window.URL.revokeObjectURL(url);
                 a.remove();
+                showSuccess('PDF downloaded successfully!');
 
             } catch (error) {
                 console.error('Error:', error);
-                alert('Failed to generate PDF. Please try again.');
+                showError(error.message || 'Failed to generate PDF. Please try again.');
             } finally {
                 downloadBtn.disabled = false;
                 const btnText = downloadBtn.querySelector('span');
                 btnText.textContent = 'Download PDF';
+                loadingIndicator.classList.add('hidden');
             }
         });
     </script>
